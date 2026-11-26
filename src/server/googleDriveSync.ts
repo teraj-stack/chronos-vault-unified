@@ -56,8 +56,7 @@ export function syncNowToGoogleDrive(
 
   try {
     const liveDir = getLiveSyncDir();
-    fs.mkdirSync(liveDir, { recursive: true });
-
+    const terajaLiveDir = path.join(path.dirname(DEFAULT_MOUNT_PATH), 'Teraja', 'live-sync');
     const nowIso = new Date().toISOString();
     const manifest = {
       app: 'Chronos Vault Unified',
@@ -67,26 +66,24 @@ export function syncNowToGoogleDrive(
       intervalSeconds: Math.round(SYNC_INTERVAL_MS / 1000),
       sourceRoot: projectRoot,
     };
-
-    fs.writeFileSync(
-      path.join(liveDir, 'last-sync.json'),
-      JSON.stringify(manifest, null, 2),
-      'utf8'
-    );
-
-    // Sync reference telemetry if present
-    const telemetrySrc = path.join(projectRoot, 'public', 'sentinel-telemetry-reference.json');
-    if (fs.existsSync(telemetrySrc)) {
-      fs.copyFileSync(telemetrySrc, path.join(liveDir, 'sentinel-telemetry-reference.json'));
-    }
-
-    // Save optional live client snapshot (e.g., mindmap/tasks metadata) if provided
-    if (clientPayload && typeof clientPayload === 'object') {
+    for (const targetDir of [liveDir, terajaLiveDir]) {
+      fs.mkdirSync(targetDir, { recursive: true });
       fs.writeFileSync(
-        path.join(liveDir, 'client-state-snapshot.json'),
-        JSON.stringify({ savedAt: nowIso, ...clientPayload }, null, 2),
+        path.join(targetDir, 'last-sync.json'),
+        JSON.stringify(manifest, null, 2),
         'utf8'
       );
+      const telemetrySrc = path.join(projectRoot, 'public', 'sentinel-telemetry-reference.json');
+      if (fs.existsSync(telemetrySrc)) {
+        fs.copyFileSync(telemetrySrc, path.join(targetDir, 'sentinel-telemetry-reference.json'));
+      }
+      if (clientPayload && typeof clientPayload === 'object') {
+        fs.writeFileSync(
+          path.join(targetDir, 'client-state-snapshot.json'),
+          JSON.stringify({ savedAt: nowIso, ...clientPayload }, null, 2),
+          'utf8'
+        );
+      }
     }
 
     lastSyncAt = nowIso;
