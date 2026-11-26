@@ -78,10 +78,28 @@
           }
         } catch (e) {}
 
+        // Subtle live 5s refresh indicator pill (bottom-right) so user sees live ticks without losing active view
+        var badge = document.createElement('div');
+        badge.id = 'chronos-live-5s-badge';
+        badge.style.cssText =
+          'position:fixed;right:12px;bottom:12px;z-index:9999;padding:4px 10px;border-radius:999px;font:600 11px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;background:rgba(15,23,42,0.82);color:#e2e8f0;border:1px solid rgba(56,189,248,0.45);backdrop-filter:blur(6px);pointer-events:none;transition:transform 0.2s ease,border-color 0.2s ease;';
+        function fmtTime() {
+          return new Date().toLocaleTimeString('pl-PL', { hour12: false });
+        }
+        badge.textContent = '● Live 5s · ' + fmtTime();
+        document.body.appendChild(badge);
+
         // Every 5s: soft-refresh live data in-place (preserving exact open view & running functions).
         // Only perform a full page reload when a new server build (ETag/Last-Modified) is detected.
         setInterval(function () {
           if (document.visibilityState !== 'visible') return;
+          badge.textContent = '● Live 5s · ' + fmtTime();
+          badge.style.borderColor = '#22c55e';
+          badge.style.transform = 'scale(1.04)';
+          setTimeout(function () {
+            badge.style.borderColor = 'rgba(56,189,248,0.45)';
+            badge.style.transform = 'scale(1)';
+          }, 350);
           window.dispatchEvent(new CustomEvent('chronos:soft-refresh', { detail: { ts: Date.now() } }));
           if (document.querySelector('input:focus, textarea:focus, select:focus, [contenteditable="true"]:focus')) {
             return;
