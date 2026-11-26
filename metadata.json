@@ -1,0 +1,6 @@
+{
+  "name": "Chronos Vault — Bezpieczne Zarządzanie Zadaniami i Zespołem",
+  "description": "Platforma produktywności z szyfrowaniem E2EE, synchronizacją w chmurze, tablicą Kanban, kalendarzem, transkrypcją głosu AI, rozpoznawaniem pisma odręcznego (OCR), analityką PDF/CSV oraz trybem offline PWA.",
+  "requestFramePermissions": ["microphone", "camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

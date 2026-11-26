@@ -1,0 +1,92 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  body {
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    background:
+      radial-gradient(circle at 82% 16%, rgba(251, 191, 36, 0.14), transparent 42%),
+      radial-gradient(circle at 14% 78%, rgba(245, 158, 11, 0.08), transparent 40%),
+      #f4f5f8;
+    color: #111827;
+  }
+
+  .dark body,
+  html.dark body {
+    background:
+      radial-gradient(circle at 80% 15%, rgba(238, 200, 163, 0.08), transparent 40%),
+      #141416;
+    color: #f4f4f5;
+  }
+
+  html.dark .bg-slate-900,
+  html.dark .bg-slate-950 {
+    background-color: #1c1c1f;
+  }
+
+  html.dark .rounded-xl.bg-white,
+  html.dark .rounded-2xl.bg-white,
+  html.dark article.bg-white,
+  html.dark .dark\:bg-slate-900 {
+    border-radius: 20px;
+    border-color: rgba(255, 255, 255, 0.07);
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.42);
+  }
+
+  html.dark .amber-pill-cta {
+    background: linear-gradient(135deg, #f3d5b5 0%, #deb086 100%);
+    color: #141416;
+    box-shadow: 0 10px 26px rgba(238, 200, 163, 0.32);
+  }
+
+  code, pre, .font-mono {
+    font-family: 'JetBrains Mono', monospace;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Pearl White & Warm Amber Creator Skin (Light Mode) */
+html:not(.dark) .rounded-xl.bg-white,
+html:not(.dark) .rounded-2xl.bg-white,
+html:not(.dark) article.bg-white {
+  border-radius: 20px;
+  border-color: rgba(15, 23, 42, 0.06);
+  box-shadow: 0 14px 36px rgba(15, 23, 42, 0.06), 0 2px 6px rgba(15, 23, 42, 0.03);
+}
+
+html:not(.dark) header {
+  background: rgba(255, 255, 255, 0.88) !important;
+  backdrop-filter: blur(14px);
+  border-bottom-color: rgba(15, 23, 42, 0.06) !important;
+}
+
+html:not(.dark) aside {
+  background: rgba(255, 255, 255, 0.92) !important;
+  border-right-color: rgba(15, 23, 42, 0.06) !important;
+}
+
+.amber-pill-cta {
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+  color: #ffffff;
+  box-shadow: 0 10px 24px rgba(245, 158, 11, 0.38);
+}
+
+.amber-pill-cta:hover {
+  filter: brightness(1.04);
+}
+
+.amber-outline-btn {
+  border: 1.5px solid #f59e0b;
+  color: #d97706;
+  background: #ffffff;
+  border-radius: 12px;
+}
+
+.amber-outline-btn:hover {
+  background: #fffbeb;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+

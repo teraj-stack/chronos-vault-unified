@@ -1,0 +1,22 @@
+export function createHotContext() {
+  return {
+    accept() {}, prune() {}, dispose() {}, decline() {},
+    invalidate() {}, on() {}, off() {}, send() {}, data: {},
+  };
+}
+const styleMap = new Map();
+export function updateStyle(id, css) {
+  let el = styleMap.get(id);
+  if (!el) {
+    el = document.createElement('style');
+    el.type = 'text/css';
+    el.setAttribute('data-sentinel-id', id);
+    document.head.appendChild(el);
+    styleMap.set(id, el);
+  }
+  el.textContent = css;
+}
+export function removeStyle(id) {
+  const el = styleMap.get(id);
+  if (el) { el.remove(); styleMap.delete(id); }
+}

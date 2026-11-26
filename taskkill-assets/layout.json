@@ -1,0 +1,81 @@
+{
+  "positions": {
+    "label:balanced": {
+      "root": {
+        "x": 168,
+        "y": 564
+      },
+      "branch-label-Strona Główna": {
+        "x": 1091,
+        "y": -1295
+      },
+      "branch-label-Baza Wiedzy MCML": {
+        "x": 1229,
+        "y": -916
+      },
+      "branch-label-Panel Pacjenta": {
+        "x": 1400,
+        "y": -280
+      },
+      "branch-label-Do wykonania": {
+        "x": -1592,
+        "y": -100
+      },
+      "branch-label-Landing Page'e": {
+        "x": 1213,
+        "y": 346
+      },
+      "branch-label-Opieka Pozabiegowa": {
+        "x": 1488,
+        "y": 1048
+      },
+      "branch-label-Mobile-First": {
+        "x": 977,
+        "y": 1475
+      },
+      "branch-label-Ogólne": {
+        "x": -840,
+        "y": 1713
+      },
+      "branch-label-Jutro · 2026-11-25": {
+        "x": 2004,
+        "y": 620
+      },
+      "branch-label-Oferta / Usługi": {
+        "x": -741,
+        "y": -840
+      },
+      "branch-label-Rezerwacja & Sklep": {
+        "x": -1571,
+        "y": -809
+      },
+      "branch-label-Panel Lekarza & Admina": {
+        "x": -1603,
+        "y": -369
+      },
+      "branch-label-rozpoczete": {
+        "x": -1475,
+        "y": 445
+      },
+      "branch-label-Kampanie & Konwersja": {
+        "x": -2430,
+        "y": 1142
+      },
+      "branch-label-Mapa Strony": {
+        "x": -1013,
+        "y": 941
+      },
+      "branch-label-Narzędzia": {
+        "x": -880,
+        "y": 1257
+      },
+      "branch-label-Dziś · 2026-11-24": {
+        "x": -2718,
+        "y": 684
+      }
+    }
+  },
+  "media": {},
+  "bg": "dark",
+  "updatedAt": 1795585514979
+}

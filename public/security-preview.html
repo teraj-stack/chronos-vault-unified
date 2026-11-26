@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chronos Vault — Podgląd securityHardening.ts i Audytu</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: radial-gradient(circle at 80% 10%, rgba(251, 191, 36, 0.14), transparent 45%), #f4f5f8;
+      color: #111827;
+      font-family: -apple-system, BlinkMacSystemFont, "Plus Jakarta Sans", sans-serif;
+      padding: 28px 20px;
+    }
+    .wrap { max-width: 920px; margin: 0 auto; display: grid; gap: 18px; }
+    .card {
+      background: #ffffff;
+      border-radius: 20px;
+      padding: 22px 24px;
+      border: 1px solid rgba(15, 23, 42, 0.07);
+      box-shadow: 0 14px 36px rgba(15, 23, 42, 0.06);
+    }
+    .top { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+    h1 { margin: 0; font-size: 20px; }
+    h2 { margin: 0 0 10px; font-size: 16px; }
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .ok { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
+    .danger { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+    .warn { background: #fffbeb; color: #b45309; border: 1px solid #fde68a; }
+    .btn {
+      text-decoration: none;
+      padding: 10px 16px;
+      border-radius: 12px;
+      font-size: 13px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #fbbf24, #f59e0b);
+      color: #fff;
+    }
+    pre {
+      margin: 12px 0 0;
+      background: #141416;
+      color: #f4f4f5;
+      padding: 16px;
+      border-radius: 14px;
+      overflow-x: auto;
+      font-size: 13px;
+      line-height: 1.5;
+      font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+    }
+    ul { margin: 8px 0 0; padding-left: 18px; line-height: 1.6; font-size: 14px; color: #374151; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card top">
+      <div>
+        <h1>Chronos Vault — Moduł bezpieczeństwa i audyt plików</h1>
+        <div style="font-size:13px;color:#6b7280;margin-top:4px">src/server/securityHardening.ts · Express HTTP Hardening Middleware</div>
+      </div>
+      <a class="btn" href="/">← Wróć do Chronos Vault</a>
+    </div>
+
+    <div class="card">
+      <div class="top">
+        <h2>1. securityHardening.ts (prawdziwy moduł serwerowy Express)</h2>
+        <span class="badge ok">Bezpieczny i gotowy do wpięcia</span>
+      </div>
+      <ul>
+        <li><strong>Nagłówki HTTP:</strong> <code>X-Content-Type-Options: nosniff</code>, <code>X-Frame-Options: SAMEORIGIN</code>, <code>Referrer-Policy</code>, <code>Permissions-Policy</code>, <code>Cross-Origin-Opener-Policy: same-origin-allow-popups</code>, <code>Strict-Transport-Security</code> (HSTS).</li>
+        <li><strong>Ochrona ścieżek:</strong> blokuje próby <em>path traversal</em> (<code>..</code> i bajty zerowe <code>\0</code>) kodem <code>400</code>.</li>
+      </ul>
+      <pre>import type { Request, Response, NextFunction } from 'express';
+
+export function securityHardeningMiddleware(req: Request, res: Response, next: NextFunction): void {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(self), microphone=(self), geolocation=(), payment=()');
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+
+  if (process.env.NODE_ENV === 'production' &amp;&amp; req.secure) {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+
+  const decodedUrl = decodeURIComponent(req.originalUrl || '');
+  if (decodedUrl.includes('..') || decodedUrl.includes('\0')) {
+    res.status(400).json({ error: 'Invalid request path.' });
+    return;
+  }
+
+  next();
+}</pre>
+    </div>
+
+    <div class="card">
+      <div class="top">
+        <h2>2. Audyt pliku 11_SENTINEL_NATIVE_BAT_IMMUNIZER_AND_MALWARE_DEFANGER.bat</h2>
+        <span class="badge danger">NIEBEZPIECZNY — NIE URUCHAMIAĆ</span>
+      </div>
+      <ul>
+        <li><strong>Faza 1 (l. 34):</strong> ubija wszystkie procesy uruchomione z <code>\AppData\</code> i <code>\Temp\</code> (np. VS Code, OneDrive, Node, Python).</li>
+        <li><strong>Faza 2 (l. 39–62):</strong> trwale nadpisuje 4 KB zerami każdy niepodpisany plik <code>.exe/.dll/.bat/.scr</code> w całym <code>AppData</code> i <code>Temp</code>, psując legalne aplikacje.</li>
+        <li><strong>Bezpieczne fragmenty:</strong> wyłącznie fazy 6–7 (<code>NoDriveTypeAutoRun=255</code>, <code>LoadAppInit_DLLs=0</code>, <code>SafeDllSearchMode=1</code>).</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="top">
+        <h2>3. Audyt pliku 7_SENTINEL_ALL_PLUGINS_FREEZE_ALARM_AND_DEFRAG.py</h2>
+        <span class="badge warn">ATRAPA (tylko print + sleep)</span>
+      </div>
+      <ul>
+        <li>Zawiera wyłącznie komunikaty <code>print(...)</code> i <code>time.sleep(...)</code> — nie zmienia nic w systemie i nie zapewnia realnej ochrony.</li>
+      </ul>
+    </div>
+  </div>
+</body>
+</html>

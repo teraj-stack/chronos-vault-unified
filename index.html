@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="pl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chronos Vault — Bezpieczne Zarządzanie Zadaniami i Zespołem</title>
+    <meta name="description" content="Platforma produktywności z szyfrowaniem E2EE, synchronizacją w chmurze, tablicą Kanban, kalendarzem, transkrypcją głosu AI, rozpoznawaniem pisma odręcznego (OCR), analityką PDF/CSV oraz trybem offline PWA." />
+    <meta property="og:site_name" content="Chronos Vault" />
+    <meta property="og:title" content="Chronos Vault — Bezpieczne Zarządzanie Zadaniami i Zespołem" />
+    <meta property="og:description" content="Platforma produktywności z szyfrowaniem E2EE, synchronizacją w chmurze, tablicą Kanban, kalendarzem, transkrypcją głosu AI, rozpoznawaniem pisma odręcznego (OCR), analityką PDF/CSV oraz trybem offline PWA." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Chronos Vault — Bezpieczne Zarządzanie Zadaniami i Zespołem" />
+    <meta name="twitter:description" content="Centralny panel sterowania AI SEO & AEO, adaptacyjny model predykcyjny, analityka zasięgu, tablica Kanban E2EE, grafiki kliniczne i monitoring chmurowy." />
+    <meta name="theme-color" content="#0F172A" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="ChronosVault" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebApplication",
+            "name": "Chronos Vault",
+            "applicationCategory": "BusinessApplication",
+            "operatingSystem": "All",
+            "inLanguage": "pl-PL",
+            "description": "Zintegrowana platforma produktywności zespołu oraz centralny panel sterowania AI monitorujący treści SEO i AEO, optymalizację fraz kluczowych w czasie, zasięg organiczny i społecznościowy oraz telemetrię chmurową.",
+            "offers": {
+              "@type": "Offer",
+              "price": "0",
+              "priceCurrency": "PLN"
+            }
+          },
+          {
+            "@type": "FAQPage",
+            "mainEntity": [
+              {
+                "@type": "Question",
+                "name": "Jak działa silnik AI SEO i AEO w Chronos Vault?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Silnik analizuje strukturę nagłówków, bezpośrednie bloki odpowiedzi dla wyszukiwarek konwersacyjnych (AEO), dane strukturalne Schema.org oraz automatycznie aktualizuje frazy kluczowe w czasie wraz z wygaszaniem nieaktualnych wag predykcyjnych."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "W jaki sposób realizowane są cykliczne raporty PDF z wysyłką e-mail?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Harmonogramy dzienne, tygodniowe i miesięczne generują wielostronicowe podsumowania PDF wyników SEO, AEO, zasięgu i anomalii oraz realizują wysyłkę na wskazane adresy e-mail przez wyzwalacze zdarzeń po stronie serwera."
+                }
+              }
+            ]
+          }
+        ]
+      }
+    </script>
+  </head>
+  <body class="bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 antialiased selection:bg-blue-600 selection:text-white">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+    <script>
+      (function () {
+        setInterval(function () {
+          if (
+            document.visibilityState === 'visible' &&
+            !document.querySelector('input:focus, textarea:focus, select:focus, [contenteditable="true"]:focus')
+          ) {
+            window.location.reload();
+          }
+        }, 5000);
+      })();
+    </script>
+  </body>
+</html>

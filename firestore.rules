@@ -1,0 +1,569 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 2. Primitive Helpers
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // 3. Entity Validation Blueprints (Anti-Update-Gap)
+    function isValidTaskList(data) {
+      return data.keys().hasAll([
+          'name', 'description', 'ownerId', 'ownerEmail',
+          'memberEmails', 'isEncrypted', 'color', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'name', 'description', 'ownerId', 'ownerEmail',
+          'memberEmails', 'isEncrypted', 'color', 'createdAt', 'updatedAt'
+        ])
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 120
+        && data.description is string && data.description.size() <= 500
+        && data.ownerId is string && data.ownerId.size() >= 1 && data.ownerId.size() <= 128 && data.ownerId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.ownerEmail is string && data.ownerEmail.size() >= 3 && data.ownerEmail.size() <= 254
+        && data.memberEmails is list && data.memberEmails.size() <= 10
+        && (data.memberEmails.size() == 0 || (data.memberEmails[0] is string && data.memberEmails[0].size() <= 254))
+        && data.isEncrypted is bool
+        && data.color is string && data.color.size() >= 1 && data.color.size() <= 32
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidTaskItem(data) {
+      return data.keys().hasAll([
+          'listId', 'title', 'description', 'status', 'priority',
+          'dueDate', 'reminderAt', 'estimatedMinutes', 'tags',
+          'sourceType', 'isEncrypted', 'assigneeEmail', 'ownerId',
+          'collaboratorEmails', 'externalCalendarPlatform', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'listId', 'title', 'description', 'status', 'priority',
+          'dueDate', 'reminderAt', 'estimatedMinutes', 'tags',
+          'sourceType', 'isEncrypted', 'assigneeEmail', 'ownerId',
+          'collaboratorEmails', 'externalCalendarPlatform', 'createdAt', 'updatedAt'
+        ])
+        && data.listId is string && data.listId.size() >= 1 && data.listId.size() <= 128 && data.listId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 1000
+        && data.description is string && data.description.size() <= 5000
+        && data.status is string && data.status.size() >= 1 && data.status.size() <= 32 && data.status in ['todo', 'in_progress', 'review', 'done']
+        && data.priority is string && data.priority.size() >= 1 && data.priority.size() <= 32 && data.priority in ['low', 'medium', 'high', 'urgent']
+        && data.dueDate is string && data.dueDate.size() <= 64
+        && data.reminderAt is string && data.reminderAt.size() <= 64
+        && data.estimatedMinutes is number && data.estimatedMinutes >= 0 && data.estimatedMinutes <= 10080
+        && data.tags is list && data.tags.size() <= 8
+        && (data.tags.size() == 0 || (data.tags[0] is string && data.tags[0].size() <= 64))
+        && data.sourceType is string && data.sourceType.size() >= 1 && data.sourceType.size() <= 32 && data.sourceType in ['manual', 'voice', 'handwriting', 'calendar']
+        && data.isEncrypted is bool
+        && data.assigneeEmail is string && data.assigneeEmail.size() <= 254
+        && data.ownerId is string && data.ownerId.size() >= 1 && data.ownerId.size() <= 128 && data.ownerId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.collaboratorEmails is list && data.collaboratorEmails.size() <= 10
+        && (data.collaboratorEmails.size() == 0 || (data.collaboratorEmails[0] is string && data.collaboratorEmails[0].size() <= 254))
+        && data.externalCalendarPlatform is string && data.externalCalendarPlatform.size() <= 128
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidClinicDevice(data) {
+      return data.keys().hasAll([
+          'name', 'modelOrSerial', 'clinicLocation', 'roomName', 'status',
+          'usedHours', 'maxServiceHours', 'usedPulses', 'maxPulses',
+          'lastServiceDate', 'nextServiceDate', 'wearNotes',
+          'ownerId', 'collaboratorEmails', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'name', 'modelOrSerial', 'clinicLocation', 'roomName', 'status',
+          'usedHours', 'maxServiceHours', 'usedPulses', 'maxPulses',
+          'lastServiceDate', 'nextServiceDate', 'wearNotes',
+          'ownerId', 'collaboratorEmails', 'createdAt', 'updatedAt'
+        ])
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 140
+        && data.modelOrSerial is string && data.modelOrSerial.size() <= 120
+        && data.clinicLocation is string && data.clinicLocation.size() <= 160
+        && data.roomName is string && data.roomName.size() <= 80
+        && data.status is string && data.status.size() >= 1 && data.status.size() <= 32 && data.status in ['operational', 'in_use', 'maintenance']
+        && data.usedHours is number && data.usedHours >= 0 && data.usedHours <= 100000
+        && data.maxServiceHours is number && data.maxServiceHours >= 1 && data.maxServiceHours <= 100000
+        && data.usedPulses is number && data.usedPulses >= 0 && data.usedPulses <= 50000000
+        && data.maxPulses is number && data.maxPulses >= 1 && data.maxPulses <= 50000000
+        && data.lastServiceDate is string && data.lastServiceDate.size() <= 32
+        && data.nextServiceDate is string && data.nextServiceDate.size() <= 32
+        && data.wearNotes is string && data.wearNotes.size() <= 1000
+        && data.ownerId is string && data.ownerId.size() >= 1 && data.ownerId.size() <= 128 && data.ownerId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.collaboratorEmails is list && data.collaboratorEmails.size() <= 10
+        && (data.collaboratorEmails.size() == 0 || (data.collaboratorEmails[0] is string && data.collaboratorEmails[0].size() <= 254))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidClinicTreatment(data) {
+      return data.keys().hasAll([
+          'deviceId', 'deviceName', 'clinicLocation', 'procedureName',
+          'patientRef', 'operatorName', 'scheduledDate', 'startTime', 'endTime',
+          'plannedPulses', 'durationMinutes', 'status', 'usageLogged', 'notes',
+          'ownerId', 'collaboratorEmails', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'deviceId', 'deviceName', 'clinicLocation', 'procedureName',
+          'patientRef', 'operatorName', 'scheduledDate', 'startTime', 'endTime',
+          'plannedPulses', 'durationMinutes', 'status', 'usageLogged', 'notes',
+          'ownerId', 'collaboratorEmails', 'createdAt', 'updatedAt'
+        ])
+        && data.deviceId is string && data.deviceId.size() >= 1 && data.deviceId.size() <= 128 && data.deviceId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.deviceName is string && data.deviceName.size() >= 1 && data.deviceName.size() <= 140
+        && data.clinicLocation is string && data.clinicLocation.size() <= 160
+        && data.procedureName is string && data.procedureName.size() >= 1 && data.procedureName.size() <= 160
+        && data.patientRef is string && data.patientRef.size() <= 80
+        && data.operatorName is string && data.operatorName.size() <= 120
+        && data.scheduledDate is string && data.scheduledDate.size() >= 1 && data.scheduledDate.size() <= 16
+        && data.startTime is string && data.startTime.size() >= 1 && data.startTime.size() <= 10
+        && data.endTime is string && data.endTime.size() >= 1 && data.endTime.size() <= 10
+        && data.plannedPulses is number && data.plannedPulses >= 0 && data.plannedPulses <= 1000000
+        && data.durationMinutes is number && data.durationMinutes >= 1 && data.durationMinutes <= 1440
+        && data.status is string && data.status.size() >= 1 && data.status.size() <= 32 && data.status in ['planned', 'confirmed', 'completed', 'cancelled']
+        && data.usageLogged is bool
+        && data.notes is string && data.notes.size() <= 1000
+        && data.ownerId is string && data.ownerId.size() >= 1 && data.ownerId.size() <= 128 && data.ownerId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.collaboratorEmails is list && data.collaboratorEmails.size() <= 10
+        && (data.collaboratorEmails.size() == 0 || (data.collaboratorEmails[0] is string && data.collaboratorEmails[0].size() <= 254))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPublicProfile(data) {
+      return data.keys().hasAll([
+          'ownerId', 'handle', 'displayName', 'roleTitle',
+          'organizationOrDomain', 'bio', 'specialties',
+          'isPubliclyShared', 'sharedAssetsCount', 'avgPredictiveScore',
+          'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'ownerId', 'handle', 'displayName', 'roleTitle',
+          'organizationOrDomain', 'bio', 'specialties',
+          'isPubliclyShared', 'sharedAssetsCount', 'avgPredictiveScore',
+          'createdAt', 'updatedAt'
+        ])
+        && data.ownerId is string && data.ownerId.size() >= 1 && data.ownerId.size() <= 128 && data.ownerId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.handle is string && data.handle.size() >= 1 && data.handle.size() <= 60 && data.handle.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100
+        && data.roleTitle is string && data.roleTitle.size() <= 100
+        && data.organizationOrDomain is string && data.organizationOrDomain.size() <= 160
+        && data.bio is string && data.bio.size() <= 500
+        && data.specialties is list && data.specialties.size() <= 8
+        && (data.specialties.size() == 0 || (data.specialties[0] is string && data.specialties[0].size() <= 64))
+        && data.isPubliclyShared is bool
+        && data.sharedAssetsCount is number && data.sharedAssetsCount >= 0 && data.sharedAssetsCount <= 100000
+        && data.avgPredictiveScore is number && data.avgPredictiveScore >= 0 && data.avgPredictiveScore <= 100
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSeoContentAsset(data) {
+      return data.keys().hasAll([
+          'title', 'channel', 'urlOrSlug', 'contentExcerpt',
+          'primaryKeyword', 'previousKeyword', 'keywordHistory',
+          'seoScore', 'aeoScore', 'predictiveStrength',
+          'organicReach', 'socialReach', 'engagementRate',
+          'anomalyType', 'aiRecommendation',
+          'ownerId', 'collaboratorEmails', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'title', 'channel', 'urlOrSlug', 'contentExcerpt',
+          'primaryKeyword', 'previousKeyword', 'keywordHistory',
+          'seoScore', 'aeoScore', 'predictiveStrength',
+          'organicReach', 'socialReach', 'engagementRate',
+          'anomalyType', 'aiRecommendation',
+          'ownerId', 'collaboratorEmails', 'createdAt', 'updatedAt'
+        ])
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 180
+        && data.channel is string && data.channel.size() >= 1 && data.channel.size() <= 32 && data.channel in ['web_page', 'blog_post', 'linkedin', 'instagram', 'x_social']
+        && data.urlOrSlug is string && data.urlOrSlug.size() <= 240
+        && data.contentExcerpt is string && data.contentExcerpt.size() >= 1 && data.contentExcerpt.size() <= 3000
+        && data.primaryKeyword is string && data.primaryKeyword.size() >= 1 && data.primaryKeyword.size() <= 140
+        && data.previousKeyword is string && data.previousKeyword.size() <= 140
+        && data.keywordHistory is list && data.keywordHistory.size() <= 10
+        && (data.keywordHistory.size() == 0 || (data.keywordHistory[0] is string && data.keywordHistory[0].size() <= 160))
+        && data.seoScore is number && data.seoScore >= 0 && data.seoScore <= 100
+        && data.aeoScore is number && data.aeoScore >= 0 && data.aeoScore <= 100
+        && data.predictiveStrength is number && data.predictiveStrength >= 0 && data.predictiveStrength <= 100
+        && data.organicReach is number && data.organicReach >= 0 && data.organicReach <= 100000000
+        && data.socialReach is number && data.socialReach >= 0 && data.socialReach <= 100000000
+        && data.engagementRate is number && data.engagementRate >= 0 && data.engagementRate <= 100
+        && data.anomalyType is string && data.anomalyType.size() >= 1 && data.anomalyType.size() <= 32 && data.anomalyType in ['none', 'reach_drop', 'keyword_decay', 'aeo_gap', 'viral_spike']
+        && data.aiRecommendation is string && data.aiRecommendation.size() <= 1200
+        && data.ownerId is string && data.ownerId.size() >= 1 && data.ownerId.size() <= 128 && data.ownerId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.collaboratorEmails is list && data.collaboratorEmails.size() <= 10
+        && (data.collaboratorEmails.size() == 0 || (data.collaboratorEmails[0] is string && data.collaboratorEmails[0].size() <= 254))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSeoReportSchedule(data) {
+      return data.keys().hasAll([
+          'reportName', 'recipientEmails', 'cadence', 'channelScope',
+          'includeAnomalyAlerts', 'isActive', 'lastDispatchedAt', 'nextRunAt',
+          'ownerId', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'reportName', 'recipientEmails', 'cadence', 'channelScope',
+          'includeAnomalyAlerts', 'isActive', 'lastDispatchedAt', 'nextRunAt',
+          'ownerId', 'createdAt', 'updatedAt'
+        ])
+        && data.reportName is string && data.reportName.size() >= 1 && data.reportName.size() <= 140
+        && data.recipientEmails is list && data.recipientEmails.size() >= 1 && data.recipientEmails.size() <= 10
+        && data.recipientEmails[0] is string && data.recipientEmails[0].size() >= 3 && data.recipientEmails[0].size() <= 254
+        && data.cadence is string && data.cadence.size() >= 1 && data.cadence.size() <= 24 && data.cadence in ['daily', 'weekly', 'monthly']
+        && data.channelScope is string && data.channelScope.size() >= 1 && data.channelScope.size() <= 32 && data.channelScope in ['all', 'web_and_blog', 'social_only']
+        && data.includeAnomalyAlerts is bool
+        && data.isActive is bool
+        && data.lastDispatchedAt is string && data.lastDispatchedAt.size() <= 64
+        && data.nextRunAt is string && data.nextRunAt.size() <= 64
+        && data.ownerId is string && data.ownerId.size() >= 1 && data.ownerId.size() <= 128 && data.ownerId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // 4. Collection: /taskLists/{listId}
+    match /taskLists/{listId} {
+      allow get: if isSignedIn()
+        && isValidId(listId)
+        && (existing().ownerId == request.auth.uid || request.auth.token.email in existing().memberEmails);
+
+      allow list: if isSignedIn()
+        && (existing().ownerId == request.auth.uid || request.auth.token.email in existing().memberEmails);
+
+      allow create: if isSignedIn()
+        && isValidId(listId)
+        && isValidTaskList(incoming())
+        && incoming().ownerId == request.auth.uid
+        && incoming().ownerEmail == request.auth.token.email
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isSignedIn()
+        && isValidId(listId)
+        && isValidTaskList(incoming())
+        && incoming().ownerId == existing().ownerId
+        && incoming().ownerEmail == existing().ownerEmail
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          (existing().ownerId == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'description', 'memberEmails', 'isEncrypted', 'color', 'updatedAt']))
+          ||
+          (request.auth.token.email in existing().memberEmails
+            && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'description', 'updatedAt']))
+        );
+
+      allow delete: if isSignedIn()
+        && isValidId(listId)
+        && existing().ownerId == request.auth.uid;
+    }
+
+    // 5. Collection: /tasks/{taskId}
+    match /tasks/{taskId} {
+      allow get: if isSignedIn()
+        && isValidId(taskId)
+        && (existing().ownerId == request.auth.uid || request.auth.token.email in existing().collaboratorEmails);
+
+      allow list: if isSignedIn()
+        && (existing().ownerId == request.auth.uid || request.auth.token.email in existing().collaboratorEmails);
+
+      allow create: if isSignedIn()
+        && isValidId(taskId)
+        && isValidTaskItem(incoming())
+        && incoming().ownerId == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (
+          incoming().listId in ['default', 'list_marketing_q4']
+          || (
+            exists(/databases/$(database)/documents/taskLists/$(incoming().listId))
+            && (
+              get(/databases/$(database)/documents/taskLists/$(incoming().listId)).data.ownerId == request.auth.uid
+              || request.auth.token.email in get(/databases/$(database)/documents/taskLists/$(incoming().listId)).data.memberEmails
+            )
+          )
+        );
+
+      allow update: if isSignedIn()
+        && isValidId(taskId)
+        && isValidTaskItem(incoming())
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          (existing().ownerId == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'listId', 'title', 'description', 'status', 'priority',
+              'dueDate', 'reminderAt', 'estimatedMinutes', 'tags',
+              'isEncrypted', 'assigneeEmail', 'collaboratorEmails',
+              'externalCalendarPlatform', 'updatedAt'
+            ])
+            && (
+              incoming().listId == existing().listId
+              || incoming().listId in ['default', 'list_marketing_q4']
+              || (
+                exists(/databases/$(database)/documents/taskLists/$(incoming().listId))
+                && (
+                  get(/databases/$(database)/documents/taskLists/$(incoming().listId)).data.ownerId == request.auth.uid
+                  || request.auth.token.email in get(/databases/$(database)/documents/taskLists/$(incoming().listId)).data.memberEmails
+                )
+              )
+            ))
+          ||
+          (request.auth.token.email in existing().collaboratorEmails
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'title', 'description', 'status', 'priority',
+              'dueDate', 'reminderAt', 'estimatedMinutes', 'tags',
+              'assigneeEmail', 'externalCalendarPlatform', 'updatedAt'
+            ]))
+        );
+
+      allow delete: if isSignedIn()
+        && isValidId(taskId)
+        && existing().ownerId == request.auth.uid;
+    }
+
+    // 6. Collection: /clinicDevices/{deviceId}
+    match /clinicDevices/{deviceId} {
+      allow get: if isSignedIn()
+        && isValidId(deviceId)
+        && (existing().ownerId == request.auth.uid || request.auth.token.email in existing().collaboratorEmails);
+
+      allow list: if isSignedIn()
+        && (existing().ownerId == request.auth.uid || request.auth.token.email in existing().collaboratorEmails);
+
+      allow create: if isSignedIn()
+        && isValidId(deviceId)
+        && isValidClinicDevice(incoming())
+        && incoming().ownerId == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isSignedIn()
+        && isValidId(deviceId)
+        && isValidClinicDevice(incoming())
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          (existing().ownerId == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'name', 'modelOrSerial', 'clinicLocation', 'roomName', 'status',
+              'usedHours', 'maxServiceHours', 'usedPulses', 'maxPulses',
+              'lastServiceDate', 'nextServiceDate', 'wearNotes',
+              'collaboratorEmails', 'updatedAt'
+            ]))
+          ||
+          (request.auth.token.email in existing().collaboratorEmails
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'clinicLocation', 'roomName', 'status',
+              'usedHours', 'usedPulses', 'lastServiceDate', 'nextServiceDate',
+              'wearNotes', 'updatedAt'
+            ]))
+        );
+
+      allow delete: if isSignedIn()
+        && isValidId(deviceId)
+        && existing().ownerId == request.auth.uid;
+    }
+
+    // 7. Collection: /clinicTreatments/{treatmentId}
+    match /clinicTreatments/{treatmentId} {
+      allow get: if isSignedIn()
+        && isValidId(treatmentId)
+        && (existing().ownerId == request.auth.uid || request.auth.token.email in existing().collaboratorEmails);
+
+      allow list: if isSignedIn()
+        && (existing().ownerId == request.auth.uid || request.auth.token.email in existing().collaboratorEmails);
+
+      allow create: if isSignedIn()
+        && isValidId(treatmentId)
+        && isValidClinicTreatment(incoming())
+        && incoming().ownerId == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (
+          incoming().deviceId.matches('^dev_demo_[a-zA-Z0-9_\\-]+$')
+          || (
+            exists(/databases/$(database)/documents/clinicDevices/$(incoming().deviceId))
+            && (
+              get(/databases/$(database)/documents/clinicDevices/$(incoming().deviceId)).data.ownerId == request.auth.uid
+              || request.auth.token.email in get(/databases/$(database)/documents/clinicDevices/$(incoming().deviceId)).data.collaboratorEmails
+            )
+          )
+        );
+
+      allow update: if isSignedIn()
+        && isValidId(treatmentId)
+        && isValidClinicTreatment(incoming())
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          (existing().ownerId == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'deviceId', 'deviceName', 'clinicLocation', 'procedureName',
+              'patientRef', 'operatorName', 'scheduledDate', 'startTime', 'endTime',
+              'plannedPulses', 'durationMinutes', 'status', 'usageLogged', 'notes',
+              'collaboratorEmails', 'updatedAt'
+            ])
+            && (
+              incoming().deviceId == existing().deviceId
+              || incoming().deviceId.matches('^dev_demo_[a-zA-Z0-9_\\-]+$')
+              || (
+                exists(/databases/$(database)/documents/clinicDevices/$(incoming().deviceId))
+                && (
+                  get(/databases/$(database)/documents/clinicDevices/$(incoming().deviceId)).data.ownerId == request.auth.uid
+                  || request.auth.token.email in get(/databases/$(database)/documents/clinicDevices/$(incoming().deviceId)).data.collaboratorEmails
+                )
+              )
+            ))
+          ||
+          (request.auth.token.email in existing().collaboratorEmails
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'clinicLocation', 'scheduledDate', 'startTime', 'endTime',
+              'plannedPulses', 'durationMinutes', 'status', 'usageLogged', 'notes', 'updatedAt'
+            ]))
+        );
+
+      allow delete: if isSignedIn()
+        && isValidId(treatmentId)
+        && existing().ownerId == request.auth.uid;
+    }
+
+    // 8. Collection: /publicProfiles/{profileId} (PII-Free Split Collection)
+    match /publicProfiles/{profileId} {
+      allow get: if isSignedIn()
+        && isValidId(profileId)
+        && (
+          (resource == null && profileId == request.auth.uid)
+          || (resource != null && (existing().ownerId == request.auth.uid || existing().isPubliclyShared == true))
+        );
+
+      allow list: if isSignedIn()
+        && (existing().ownerId == request.auth.uid || existing().isPubliclyShared == true);
+
+      allow create: if isSignedIn()
+        && isValidId(profileId)
+        && profileId == request.auth.uid
+        && isValidPublicProfile(incoming())
+        && incoming().ownerId == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isSignedIn()
+        && isValidId(profileId)
+        && profileId == request.auth.uid
+        && isValidPublicProfile(incoming())
+        && existing().ownerId == request.auth.uid
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'handle', 'displayName', 'roleTitle', 'organizationOrDomain',
+          'bio', 'specialties', 'isPubliclyShared',
+          'sharedAssetsCount', 'avgPredictiveScore', 'updatedAt'
+        ]);
+
+      allow delete: if isSignedIn()
+        && isValidId(profileId)
+        && existing().ownerId == request.auth.uid;
+    }
+
+    // 9. Collection: /seoContentAssets/{assetId}
+    match /seoContentAssets/{assetId} {
+      allow get: if isSignedIn()
+        && isValidId(assetId)
+        && (resource == null || existing().ownerId == request.auth.uid || request.auth.token.email in existing().collaboratorEmails);
+
+      allow list: if isSignedIn()
+        && (existing().ownerId == request.auth.uid || request.auth.token.email in existing().collaboratorEmails);
+
+      allow create: if isSignedIn()
+        && isValidId(assetId)
+        && isValidSeoContentAsset(incoming())
+        && incoming().ownerId == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isSignedIn()
+        && isValidId(assetId)
+        && isValidSeoContentAsset(incoming())
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          (existing().ownerId == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'title', 'channel', 'urlOrSlug', 'contentExcerpt',
+              'primaryKeyword', 'previousKeyword', 'keywordHistory',
+              'seoScore', 'aeoScore', 'predictiveStrength',
+              'organicReach', 'socialReach', 'engagementRate',
+              'anomalyType', 'aiRecommendation', 'collaboratorEmails', 'updatedAt'
+            ]))
+          ||
+          (request.auth.token.email in existing().collaboratorEmails
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'contentExcerpt', 'primaryKeyword', 'previousKeyword', 'keywordHistory',
+              'seoScore', 'aeoScore', 'predictiveStrength',
+              'organicReach', 'socialReach', 'engagementRate',
+              'anomalyType', 'aiRecommendation', 'updatedAt'
+            ]))
+        );
+
+      allow delete: if isSignedIn()
+        && isValidId(assetId)
+        && existing().ownerId == request.auth.uid;
+    }
+
+    // 10. Collection: /seoReportSchedules/{scheduleId} (Strictly Owner-Isolated PII)
+    match /seoReportSchedules/{scheduleId} {
+      allow get: if isSignedIn()
+        && isValidId(scheduleId)
+        && (resource == null || existing().ownerId == request.auth.uid);
+
+      allow list: if isSignedIn()
+        && existing().ownerId == request.auth.uid;
+
+      allow create: if isSignedIn()
+        && isValidId(scheduleId)
+        && isValidSeoReportSchedule(incoming())
+        && incoming().ownerId == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isSignedIn()
+        && isValidId(scheduleId)
+        && isValidSeoReportSchedule(incoming())
+        && existing().ownerId == request.auth.uid
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'reportName', 'recipientEmails', 'cadence', 'channelScope',
+          'includeAnomalyAlerts', 'isActive', 'lastDispatchedAt', 'nextRunAt', 'updatedAt'
+        ]);
+
+      allow delete: if isSignedIn()
+        && isValidId(scheduleId)
+        && existing().ownerId == request.auth.uid;
+    }
+  }
+}

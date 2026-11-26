@@ -1,0 +1,741 @@
+{
+  "entities": {
+    "TaskList": {
+      "title": "TaskList",
+      "description": "A shared or personal workspace list/team project containing tasks.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the task list or team board",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the workspace list",
+          "maxLength": 500
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "UID of the creator/owner",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerEmail": {
+          "type": "string",
+          "description": "Email of the owner",
+          "minLength": 3,
+          "maxLength": 254
+        },
+        "memberEmails": {
+          "type": "array",
+          "description": "Bounded list of up to 10 collaborator emails",
+          "maxLength": 10
+        },
+        "isEncrypted": {
+          "type": "boolean",
+          "description": "Whether tasks in this list use client-side AES-GCM E2EE encryption"
+        },
+        "color": {
+          "type": "string",
+          "description": "Semantic accent color identifier",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation server timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last update server timestamp"
+        }
+      },
+      "required": [
+        "name",
+        "description",
+        "ownerId",
+        "ownerEmail",
+        "memberEmails",
+        "isEncrypted",
+        "color",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "TaskItem": {
+      "title": "TaskItem",
+      "description": "An individual task item with Kanban status, reminders, E2EE payload support, and calendar scheduling.",
+      "type": "object",
+      "properties": {
+        "listId": {
+          "type": "string",
+          "description": "ID of the parent TaskList or built-in workspace ('default', 'list_marketing_q4')",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "title": {
+          "type": "string",
+          "description": "Task title (or AES-GCM ciphertext when E2EE is enabled)",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "description": {
+          "type": "string",
+          "description": "Detailed task notes, voice transcript, or OCR handwriting text (or ciphertext)",
+          "maxLength": 5000
+        },
+        "status": {
+          "type": "string",
+          "description": "Kanban column status",
+          "enum": ["todo", "in_progress", "review", "done"],
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "priority": {
+          "type": "string",
+          "description": "Task priority level",
+          "enum": ["low", "medium", "high", "urgent"],
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "dueDate": {
+          "type": "string",
+          "description": "Local ISO date-time string (YYYY-MM-DDTHH:mm) or empty string when unscheduled",
+          "maxLength": 64
+        },
+        "reminderAt": {
+          "type": "string",
+          "description": "Local ISO date-time string (YYYY-MM-DDTHH:mm) for push notification reminder or empty string",
+          "maxLength": 64
+        },
+        "estimatedMinutes": {
+          "type": "number",
+          "description": "Estimated duration in minutes for productivity analytics"
+        },
+        "tags": {
+          "type": "array",
+          "description": "Bounded list of up to 8 string tags",
+          "maxLength": 8
+        },
+        "sourceType": {
+          "type": "string",
+          "description": "Origin of the task (manual, voice, handwriting, calendar)",
+          "enum": ["manual", "voice", "handwriting", "calendar"],
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "isEncrypted": {
+          "type": "boolean",
+          "description": "True if title and description are encrypted with Web Crypto AES-256-GCM"
+        },
+        "assigneeEmail": {
+          "type": "string",
+          "description": "Email of the team member assigned to this task",
+          "maxLength": 254
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "UID of the task creator",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "collaboratorEmails": {
+          "type": "array",
+          "description": "Bounded list of up to 10 emails with access to this task",
+          "maxLength": 10
+        },
+        "externalCalendarPlatform": {
+          "type": "string",
+          "description": "Calendar target and sync state ('none', 'local', 'google:pending', 'google:<eventId>', 'outlook:pending', 'outlook:<eventId>')",
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation server timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last update server timestamp"
+        }
+      },
+      "required": [
+        "listId",
+        "title",
+        "description",
+        "status",
+        "priority",
+        "dueDate",
+        "reminderAt",
+        "estimatedMinutes",
+        "tags",
+        "sourceType",
+        "isEncrypted",
+        "assigneeEmail",
+        "ownerId",
+        "collaboratorEmails",
+        "externalCalendarPlatform",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ClinicDevice": {
+      "title": "ClinicDevice",
+      "description": "Clinical or aesthetic equipment unit tracked by fillable clinic location, weekly schedule, and technical wear counters.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Device name",
+          "minLength": 1,
+          "maxLength": 140
+        },
+        "modelOrSerial": {
+          "type": "string",
+          "description": "Model or serial number",
+          "maxLength": 120
+        },
+        "clinicLocation": {
+          "type": "string",
+          "description": "User-fillable clinic location field (may be empty if not yet filled in)",
+          "maxLength": 160
+        },
+        "roomName": {
+          "type": "string",
+          "description": "Room or treatment suite identifier",
+          "maxLength": 80
+        },
+        "status": {
+          "type": "string",
+          "description": "Operational state of the device",
+          "enum": ["operational", "in_use", "maintenance"],
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "usedHours": {
+          "type": "number",
+          "description": "Logged operating hours"
+        },
+        "maxServiceHours": {
+          "type": "number",
+          "description": "Service interval threshold in hours"
+        },
+        "usedPulses": {
+          "type": "number",
+          "description": "Logged handpiece shots/pulses"
+        },
+        "maxPulses": {
+          "type": "number",
+          "description": "Maximum rated handpiece shots/pulses before replacement/calibration"
+        },
+        "lastServiceDate": {
+          "type": "string",
+          "description": "ISO date (YYYY-MM-DD) of last inspection",
+          "maxLength": 32
+        },
+        "nextServiceDate": {
+          "type": "string",
+          "description": "ISO date (YYYY-MM-DD) of next scheduled inspection",
+          "maxLength": 32
+        },
+        "wearNotes": {
+          "type": "string",
+          "description": "Consumables and wear inspection notes",
+          "maxLength": 1000
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "UID of the creator/owner",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "collaboratorEmails": {
+          "type": "array",
+          "description": "Bounded list of up to 10 team emails with access",
+          "maxLength": 10
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation server timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last update server timestamp"
+        }
+      },
+      "required": [
+        "name",
+        "modelOrSerial",
+        "clinicLocation",
+        "roomName",
+        "status",
+        "usedHours",
+        "maxServiceHours",
+        "usedPulses",
+        "maxPulses",
+        "lastServiceDate",
+        "nextServiceDate",
+        "wearNotes",
+        "ownerId",
+        "collaboratorEmails",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ClinicTreatmentPlan": {
+      "title": "ClinicTreatmentPlan",
+      "description": "Scheduled treatment plan and device time-slot booking grouped by clinic location.",
+      "type": "object",
+      "properties": {
+        "deviceId": {
+          "type": "string",
+          "description": "ID of the assigned ClinicDevice",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "deviceName": {
+          "type": "string",
+          "description": "Display name of the device",
+          "minLength": 1,
+          "maxLength": 140
+        },
+        "clinicLocation": {
+          "type": "string",
+          "description": "User-fillable clinic location field",
+          "maxLength": 160
+        },
+        "procedureName": {
+          "type": "string",
+          "description": "Treatment or procedure name",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "patientRef": {
+          "type": "string",
+          "description": "Non-PII anonymized patient chart reference code",
+          "maxLength": 80
+        },
+        "operatorName": {
+          "type": "string",
+          "description": "Specialist or operator performing the procedure",
+          "maxLength": 120
+        },
+        "scheduledDate": {
+          "type": "string",
+          "description": "Local ISO date (YYYY-MM-DD)",
+          "minLength": 1,
+          "maxLength": 16
+        },
+        "startTime": {
+          "type": "string",
+          "description": "Start time (HH:mm)",
+          "minLength": 1,
+          "maxLength": 10
+        },
+        "endTime": {
+          "type": "string",
+          "description": "End time (HH:mm)",
+          "minLength": 1,
+          "maxLength": 10
+        },
+        "plannedPulses": {
+          "type": "number",
+          "description": "Planned or executed pulses/shots for equipment wear tracking"
+        },
+        "durationMinutes": {
+          "type": "number",
+          "description": "Procedure duration in minutes"
+        },
+        "status": {
+          "type": "string",
+          "description": "Treatment plan status",
+          "enum": ["planned", "confirmed", "completed", "cancelled"],
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "usageLogged": {
+          "type": "boolean",
+          "description": "True once hours and pulses from this procedure have been added to ClinicDevice wear counters"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Treatment parameters and clinical protocol notes",
+          "maxLength": 1000
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "UID of the creator",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "collaboratorEmails": {
+          "type": "array",
+          "description": "Bounded list of up to 10 team emails with access",
+          "maxLength": 10
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation server timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last update server timestamp"
+        }
+      },
+      "required": [
+        "deviceId",
+        "deviceName",
+        "clinicLocation",
+        "procedureName",
+        "patientRef",
+        "operatorName",
+        "scheduledDate",
+        "startTime",
+        "endTime",
+        "plannedPulses",
+        "durationMinutes",
+        "status",
+        "usageLogged",
+        "notes",
+        "ownerId",
+        "collaboratorEmails",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "SharedUserProfile": {
+      "title": "SharedUserProfile",
+      "description": "PII-free user profile shared in Firestore for SEO/AEO collaboration and expertise discovery (Split Collection strategy — zero email/phone/address fields).",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "UID of the profile owner (matches document ID)",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "handle": {
+          "type": "string",
+          "description": "Public alphanumeric handle without PII",
+          "minLength": 1,
+          "maxLength": 60,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Public display name",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "roleTitle": {
+          "type": "string",
+          "description": "Professional role or SEO/AEO specialization title",
+          "maxLength": 100
+        },
+        "organizationOrDomain": {
+          "type": "string",
+          "description": "Monitored website domain or organization name",
+          "maxLength": 160
+        },
+        "bio": {
+          "type": "string",
+          "description": "Short professional summary",
+          "maxLength": 500
+        },
+        "specialties": {
+          "type": "array",
+          "description": "Bounded list of up to 8 SEO/AEO/Content specialties",
+          "maxLength": 8
+        },
+        "isPubliclyShared": {
+          "type": "boolean",
+          "description": "Whether this PII-free profile is visible in the shared Firestore profile directory"
+        },
+        "sharedAssetsCount": {
+          "type": "number",
+          "description": "Number of monitored SEO/AEO content assets"
+        },
+        "avgPredictiveScore": {
+          "type": "number",
+          "description": "Average predictive SEO/AEO strength score (0-100)"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation server timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last update server timestamp"
+        }
+      },
+      "required": [
+        "ownerId",
+        "handle",
+        "displayName",
+        "roleTitle",
+        "organizationOrDomain",
+        "bio",
+        "specialties",
+        "isPubliclyShared",
+        "sharedAssetsCount",
+        "avgPredictiveScore",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "SeoContentAsset": {
+      "title": "SeoContentAsset",
+      "description": "Monitored web page, blog post, or social media post tracked by the AI SEO/AEO engine with time-evolving keyword optimization, reach metrics, and predictive strength.",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Page, post, or social campaign title",
+          "minLength": 1,
+          "maxLength": 180
+        },
+        "channel": {
+          "type": "string",
+          "description": "Content distribution channel",
+          "enum": ["web_page", "blog_post", "linkedin", "instagram", "x_social"],
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "urlOrSlug": {
+          "type": "string",
+          "description": "Canonical URL, path slug, or social post handle",
+          "maxLength": 240
+        },
+        "contentExcerpt": {
+          "type": "string",
+          "description": "Monitored content body or post copy",
+          "minLength": 1,
+          "maxLength": 3000
+        },
+        "primaryKeyword": {
+          "type": "string",
+          "description": "Current active target keyword phrase",
+          "minLength": 1,
+          "maxLength": 140
+        },
+        "previousKeyword": {
+          "type": "string",
+          "description": "Prior keyword before temporal AI optimization",
+          "maxLength": 140
+        },
+        "keywordHistory": {
+          "type": "array",
+          "description": "Bounded history of up to 10 keyword iterations over time",
+          "maxLength": 10
+        },
+        "seoScore": {
+          "type": "number",
+          "description": "Technical & on-page SEO score (0-100)"
+        },
+        "aeoScore": {
+          "type": "number",
+          "description": "Answer Engine Optimization citation readiness score (0-100)"
+        },
+        "predictiveStrength": {
+          "type": "number",
+          "description": "Real-time adaptive online model predictive strength (0-100)"
+        },
+        "organicReach": {
+          "type": "number",
+          "description": "Measured organic search & AI overview impressions"
+        },
+        "socialReach": {
+          "type": "number",
+          "description": "Measured social media impressions/reach"
+        },
+        "engagementRate": {
+          "type": "number",
+          "description": "Engagement or CTR percentage (0-100)"
+        },
+        "anomalyType": {
+          "type": "string",
+          "description": "Detected anomaly classification",
+          "enum": ["none", "reach_drop", "keyword_decay", "aeo_gap", "viral_spike"],
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "aiRecommendation": {
+          "type": "string",
+          "description": "Actionable SEO/AEO and reach recommendation generated by AI",
+          "maxLength": 1200
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "UID of the creator/owner",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "collaboratorEmails": {
+          "type": "array",
+          "description": "Bounded list of up to 10 collaborator emails",
+          "maxLength": 10
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation server timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last update server timestamp"
+        }
+      },
+      "required": [
+        "title",
+        "channel",
+        "urlOrSlug",
+        "contentExcerpt",
+        "primaryKeyword",
+        "previousKeyword",
+        "keywordHistory",
+        "seoScore",
+        "aeoScore",
+        "predictiveStrength",
+        "organicReach",
+        "socialReach",
+        "engagementRate",
+        "anomalyType",
+        "aiRecommendation",
+        "ownerId",
+        "collaboratorEmails",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "SeoReportSchedule": {
+      "title": "SeoReportSchedule",
+      "description": "Owner-private cyclical PDF summary report & email dispatch configuration (strictly isolated to ownerId due to recipientEmails PII).",
+      "type": "object",
+      "properties": {
+        "reportName": {
+          "type": "string",
+          "description": "Title of the scheduled PDF summary report",
+          "minLength": 1,
+          "maxLength": 140
+        },
+        "recipientEmails": {
+          "type": "array",
+          "description": "Bounded list of up to 10 recipient email addresses",
+          "maxLength": 10
+        },
+        "cadence": {
+          "type": "string",
+          "description": "Cyclical dispatch frequency",
+          "enum": ["daily", "weekly", "monthly"],
+          "minLength": 1,
+          "maxLength": 24
+        },
+        "channelScope": {
+          "type": "string",
+          "description": "Included channels in the PDF digest",
+          "enum": ["all", "web_and_blog", "social_only"],
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "includeAnomalyAlerts": {
+          "type": "boolean",
+          "description": "Whether personalized anomaly splits are embedded in the report"
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Whether cyclical dispatch is active"
+        },
+        "lastDispatchedAt": {
+          "type": "string",
+          "description": "ISO timestamp of last email/PDF dispatch or empty string",
+          "maxLength": 64
+        },
+        "nextRunAt": {
+          "type": "string",
+          "description": "ISO timestamp of next scheduled execution",
+          "maxLength": 64
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "UID of the schedule owner",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation server timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last update server timestamp"
+        }
+      },
+      "required": [
+        "reportName",
+        "recipientEmails",
+        "cadence",
+        "channelScope",
+        "includeAnomalyAlerts",
+        "isActive",
+        "lastDispatchedAt",
+        "nextRunAt",
+        "ownerId",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/taskLists/{listId}": {
+      "schema": { "$ref": "#/entities/TaskList" },
+      "description": "Shared or personal task lists and team workspaces"
+    },
+    "/tasks/{taskId}": {
+      "schema": { "$ref": "#/entities/TaskItem" },
+      "description": "Tasks synced in real-time across owner and team collaborators"
+    },
+    "/clinicDevices/{deviceId}": {
+      "schema": { "$ref": "#/entities/ClinicDevice" },
+      "description": "Clinic equipment units grouped by fillable clinic location with wear counters"
+    },
+    "/clinicTreatments/{treatmentId}": {
+      "schema": { "$ref": "#/entities/ClinicTreatmentPlan" },
+      "description": "Scheduled treatments and weekly device schedule bookings"
+    },
+    "/publicProfiles/{profileId}": {
+      "schema": { "$ref": "#/entities/SharedUserProfile" },
+      "description": "PII-free user profiles shared across authenticated team members in Firestore"
+    },
+    "/seoContentAssets/{assetId}": {
+      "schema": { "$ref": "#/entities/SeoContentAsset" },
+      "description": "Monitored pages, blog posts, and social posts with SEO/AEO and predictive reach metrics"
+    },
+    "/seoReportSchedules/{scheduleId}": {
+      "schema": { "$ref": "#/entities/SeoReportSchedule" },
+      "description": "Owner-isolated cyclical PDF report & email delivery schedules"
+    }
+  }
+}

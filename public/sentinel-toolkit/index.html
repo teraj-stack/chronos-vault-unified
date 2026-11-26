@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="pl" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Process Killer Toolkit — Remix (52)</title>
+      <style id="sentinel-calm-overlay-fix">
+      /* Remove distracting full-screen animated rings, sweep waves, and laser overlays */
+      div.fixed.inset-0.pointer-events-none,
+      svg.fixed.inset-0.pointer-events-none,
+      canvas.fixed.inset-0.pointer-events-none {
+        display: none !important;
+        opacity: 0 !important;
+        visibility: hidden !important;
+      }
+    </style>
+  </head>
+  <body class="bg-zinc-950 text-zinc-100 antialiased">
+    <div id="root"></div>
+    <script type="module" src="/sentinel-toolkit/src/main.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,43 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+
+APP_CONTENTS="$(cd "$(dirname "$0")/.." && pwd)"
+RESOURCES_DIR="$APP_CONTENTS/Resources"
+SERVER_SCRIPT="$RESOURCES_DIR/offline_server.py"
+DATA_DIR="$HOME/Library/Application Support/ChronosVault"
+LOG_FILE="$HOME/Library/Logs/ChronosVault.log"
+PID_FILE="$DATA_DIR/server.pid"
+PORT="3020"
+URL="http://127.0.0.1:${PORT}/"
+
+mkdir -p "$DATA_DIR" "$HOME/Library/Logs"
+
+# Start local offline server if not already responding
+if ! /usr/bin/curl -sf "http://127.0.0.1:${PORT}/__health" >/dev/null 2>&1; then
+  nohup /usr/bin/python3 "$SERVER_SCRIPT" >>"$LOG_FILE" 2>&1 &
+  echo $! > "$PID_FILE"
+
+  # Wait up to 5 seconds for server readiness
+  for _ in {1..25}; do
+    if /usr/bin/curl -sf "http://127.0.0.1:${PORT}/__health" >/dev/null 2>&1; then
+      break
+    fi
+    sleep 0.2
+  done
+fi
+
+# Open as an independent app window if a Chromium-based browser is installed,
+# otherwise open in the default macOS browser.
+CHROME_PROFILE="$DATA_DIR/app-profile"
+for BROWSER_BIN in \
+  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+  "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser" \
+  "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge" \
+  "/Applications/Chromium.app/Contents/MacOS/Chromium"; do
+  if [[ -x "$BROWSER_BIN" ]]; then
+    nohup "$BROWSER_BIN" --app="$URL" --user-data-dir="$CHROME_PROFILE" --no-first-run >/dev/null 2>&1 &
+    exit 0
+  fi
+done
+
+/usr/bin/open "$URL"
