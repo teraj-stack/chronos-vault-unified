@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Mic, Square, PenTool, Upload, Sparkles, Check, Trash2, FileAudio, RefreshCw, X } from 'lucide-react';
+import { Mic, Square, PenTool, Upload, Sparkles, Check, Trash2, FileAudio, RefreshCw, X, FolderOpen, Download } from 'lucide-react';
 
 export interface ExtractedTaskDraft {
   title: string;
@@ -8,6 +8,45 @@ export interface ExtractedTaskDraft {
   dueDateOffsetDays: number;
   estimatedMinutes: number;
   tags: string[];
+}
+
+export interface SavedVoiceNoteRecord {
+  id: string;
+  fileName: string;
+  relativePath: string;
+  absolutePath: string;
+  audioUrl: string;
+  mimeType: string;
+  sizeBytes: number;
+  durationSeconds: number;
+  transcript: string;
+  tasksCount: number;
+  createdAt: string;
+}
+
+interface SpeechRecognitionAlternativeLike {
+  transcript: string;
+}
+
+interface SpeechRecognitionResultLike {
+  isFinal: boolean;
+  length: number;
+  0: SpeechRecognitionAlternativeLike;
+}
+
+interface SpeechRecognitionEventLike {
+  resultIndex: number;
+  results: ArrayLike<SpeechRecognitionResultLike>;
+}
+
+interface SpeechRecognitionLike {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: ((event: unknown) => void) | null;
+  start: () => void;
+  stop: () => void;
 }
 
 interface VoiceAndHandwritingModalProps {
@@ -35,11 +74,17 @@ export const VoiceAndHandwritingModal: React.FC<VoiceAndHandwritingModalProps> =
   // Voice recording state
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
-  const [voiceNoteFallback, setVoiceNoteFallback] = useState(
-    'Przygotować raport kwartalny sprzedaży na jutro (wysoki priorytet, około 90 minut), a potem umówić spotkanie zespołu projektowego na piątek w sprawie wdrożenia szyfrowania E2EE (45 minut).'
-  );
+  const [voiceNoteFallback, setVoiceNoteFallback] = useState('');
+  const [liveInterimText, setLiveInterimText] = useState('');
+  const [savedNotes, setSavedNotes] = useState<SavedVoiceNoteRecord[]>([]);
+  const [voiceDirectory, setVoiceDirectory] = useState<string>('data/voice-notes');
+  const [latestSavedNote, setLatestSavedNote] = useState<SavedVoiceNoteRecord | null>(null);
+  const [speechActive, setSpeechActive] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const speechRecognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const recordingSecondsRef = useRef<number>(0);
+  const voiceTranscriptRef = useRef<string>('');
 
   // Handwriting canvas state
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -54,9 +99,32 @@ export const VoiceAndHandwritingModal: React.FC<VoiceAndHandwritingModalProps> =
   const [extractedTasks, setExtractedTasks] = useState<ExtractedTaskDraft[]>([]);
   const [isSaving, setIsSaving] = useState(false);
 
+  const loadSavedVoiceNotes = async () => {
+    try {
+      const res = await fetch('/api/voice-notes');
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.directory) setVoiceDirectory(String(data.directory));
+      if (Array.isArray(data.notes)) setSavedNotes(data.notes);
+    } catch {
+      // Ignore fetch failure when offline
+    }
+  };
+
+  useEffect(() => {
+    recordingSecondsRef.current = recordingSeconds;
+  }, [recordingSeconds]);
+
+  useEffect(() => {
+    voiceTranscriptRef.current = voiceNoteFallback;
+  }, [voiceNoteFallback]);
+
   useEffect(() => {
     setActiveTab(initialTab);
     setErrorMessage(null);
+    if (isOpen) {
+      loadSavedVoiceNotes();
+    }
   }, [initialTab, isOpen]);
 
   useEffect(() => {
@@ -113,10 +181,53 @@ export const VoiceAndHandwritingModal: React.FC<VoiceAndHandwritingModalProps> =
 
   const startRecording = async () => {
     setErrorMessage(null);
+    setLatestSavedNote(null);
+    setLiveInterimText('');
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const recorder = new MediaRecorder(stream);
       audioChunksRef.current = [];
+      recordingSecondsRef.current = 0;
+
+      // Start live Polish SpeechRecognition alongside MediaRecorder when supported
+      const SpeechCtor =
+        (window as unknown as { SpeechRecognition?: new () => SpeechRecognitionLike; webkitSpeechRecognition?: new () => SpeechRecognitionLike }).SpeechRecognition ||
+        (window as unknown as { webkitSpeechRecognition?: new () => SpeechRecognitionLike }).webkitSpeechRecognition;
+
+      if (SpeechCtor) {
+        try {
+          const recognition = new SpeechCtor();
+          recognition.lang = 'pl-PL';
+          recognition.continuous = true;
+          recognition.interimResults = true;
+          recognition.onresult = (event: SpeechRecognitionEventLike) => {
+            let finalChunk = '';
+            let interimChunk = '';
+            for (let i = event.resultIndex; i < event.results.length; i += 1) {
+              const res = event.results[i];
+              const text = res[0]?.transcript || '';
+              if (res.isFinal) finalChunk += `${text} `;
+              else interimChunk += text;
+            }
+            if (finalChunk.trim()) {
+              setVoiceNoteFallback((prev) => {
+                const next = prev.trim() ? `${prev.trim()} ${finalChunk.trim()}` : finalChunk.trim();
+                voiceTranscriptRef.current = next;
+                return next;
+              });
+            }
+            setLiveInterimText(interimChunk);
+          };
+          recognition.onerror = () => {
+            setSpeechActive(false);
+          };
+          recognition.start();
+          speechRecognitionRef.current = recognition;
+          setSpeechActive(true);
+        } catch {
+          setSpeechActive(false);
+        }
+      }
 
       recorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
@@ -126,8 +237,18 @@ export const VoiceAndHandwritingModal: React.FC<VoiceAndHandwritingModalProps> =
 
       recorder.onstop = async () => {
         stream.getTracks().forEach((track) => track.stop());
+        if (speechRecognitionRef.current) {
+          try {
+            speechRecognitionRef.current.stop();
+          } catch {
+            // Ignore stop error
+          }
+          speechRecognitionRef.current = null;
+        }
+        setSpeechActive(false);
+        setLiveInterimText('');
         const audioBlob = new Blob(audioChunksRef.current, { type: recorder.mimeType || 'audio/webm' });
-        await processAudioBlob(audioBlob);
+        await processAudioBlob(audioBlob, recordingSecondsRef.current);
       };
 
       mediaRecorderRef.current = recorder;
@@ -135,7 +256,7 @@ export const VoiceAndHandwritingModal: React.FC<VoiceAndHandwritingModalProps> =
       setIsRecording(true);
     } catch {
       setErrorMessage(
-        'Brak dostępu do mikrofonu w bieżącym oknie przeglądarki. Możesz podyktować lub edytować treść notatki głosowej poniżej i uruchomić ekstrakcję zadań AI.'
+        'Brak dostępu do mikrofonu w bieżącym oknie przeglądarki. Możesz wpisać lub wgrać plik audio poniżej — plik zostanie zapisany na dysku.'
       );
     }
   };
@@ -160,7 +281,7 @@ export const VoiceAndHandwritingModal: React.FC<VoiceAndHandwritingModalProps> =
     });
   };
 
-  const processAudioBlob = async (blob?: Blob) => {
+  const processAudioBlob = async (blob?: Blob, durationSec?: number) => {
     setIsProcessing(true);
     setErrorMessage(null);
     try {
@@ -172,13 +293,15 @@ export const VoiceAndHandwritingModal: React.FC<VoiceAndHandwritingModalProps> =
         mimeType = blob.type || 'audio/webm';
       }
 
+      const textToSend = (voiceTranscriptRef.current || voiceNoteFallback).trim();
       const response = await fetch('/api/ai/transcribe-voice', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           audioBase64,
           mimeType,
-          textFallback: voiceNoteFallback,
+          durationSeconds: durationSec ?? recordingSecondsRef.current,
+          textFallback: textToSend,
         }),
       });
 
@@ -187,12 +310,29 @@ export const VoiceAndHandwritingModal: React.FC<VoiceAndHandwritingModalProps> =
         throw new Error(data.error || 'Nie udało się przetworzyć notatki głosowej.');
       }
 
+      if (data.directory) setVoiceDirectory(String(data.directory));
+      if (data.savedNote) {
+        setLatestSavedNote(data.savedNote);
+        await loadSavedVoiceNotes();
+      }
       setTranscript(data.transcript || '');
       setExtractedTasks(data.tasks || []);
     } catch (err: unknown) {
-      setErrorMessage(err instanceof Error ? err.message : 'Wystąpił błąd podczas analizy AI.');
+      setErrorMessage(err instanceof Error ? err.message : 'Wystąpił błąd podczas zapisu notatki głosowej.');
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const deleteSavedVoiceNote = async (id: string) => {
+    try {
+      const res = await fetch(`/api/voice-notes/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      if (res.ok) {
+        setSavedNotes((prev) => prev.filter((n) => n.id !== id));
+        if (latestSavedNote?.id === id) setLatestSavedNote(null);
+      }
+    } catch {
+      // Ignore delete error
     }
   };
 
@@ -386,11 +526,21 @@ export const VoiceAndHandwritingModal: React.FC<VoiceAndHandwritingModalProps> =
               <div className="p-5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div className="space-y-1 text-center sm:text-left">
                   <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                    Nagrywanie Głosu (Gemini 3.5 Transcribe)
+                    Natywne Nagrywanie Głosu + Zapis Plików Audio
                   </div>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Nagraj głos mikrofonem, prześlij plik audio lub przetestuj dyktowanie poniżej.
+                    Nagrywa audio mikrofonem, rozpoznaje polską mowę na żywo i zapisuje pliki w{' '}
+                    <code className="text-[11px] bg-slate-200/70 dark:bg-slate-800 px-1 py-0.5 rounded">
+                      data/voice-notes/
+                    </code>
+                    .
                   </p>
+                  {isRecording && (
+                    <div className="text-xs font-medium text-red-600 dark:text-red-400">
+                      ● Nagrywanie aktywne ({recordingSeconds}s)
+                      {speechActive ? ' · Dyktowanie pl-PL aktywne' : ''}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-3 shrink-0">
@@ -411,7 +561,7 @@ export const VoiceAndHandwritingModal: React.FC<VoiceAndHandwritingModalProps> =
                       className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-xs font-semibold transition-colors whitespace-nowrap shrink-0"
                     >
                       <Square className="w-4 h-4 text-red-500" />
-                      Zatrzymaj ({recordingSeconds}s)
+                      Zatrzymaj i Zapisz ({recordingSeconds}s)
                     </button>
                   )}
 
@@ -428,32 +578,130 @@ export const VoiceAndHandwritingModal: React.FC<VoiceAndHandwritingModalProps> =
                 </div>
               </div>
 
+              {liveInterimText && (
+                <div className="p-2.5 rounded-lg bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800 text-xs text-sky-900 dark:text-sky-200">
+                  Rozpoznawanie na żywo: <span className="italic">{liveInterimText}</span>
+                </div>
+              )}
+
+              {latestSavedNote && (
+                <div className="p-3.5 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 space-y-2">
+                  <div className="flex items-center justify-between gap-2 text-xs text-emerald-900 dark:text-emerald-200">
+                    <span className="font-semibold flex items-center gap-1.5">
+                      <Check className="w-4 h-4" />
+                      Zapisano plik audio: {latestSavedNote.fileName}
+                    </span>
+                    <a
+                      href={latestSavedNote.audioUrl}
+                      download={latestSavedNote.fileName}
+                      className="inline-flex items-center gap-1 font-medium underline"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      Pobierz
+                    </a>
+                  </div>
+                  <div className="text-[11px] font-mono text-emerald-800 dark:text-emerald-300 break-all">
+                    Ścieżka na dysku: {latestSavedNote.absolutePath}
+                  </div>
+                  <audio controls src={latestSavedNote.audioUrl} className="w-full h-9" />
+                </div>
+              )}
+
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <label className="text-xs font-medium text-slate-700 dark:text-slate-300">
-                    Zapis dyktowania głosowego / symulator notatki głosowej:
+                    Transkrypcja / treść notatki głosowej:
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => processAudioBlob()}
-                    disabled={isProcessing || !voiceNoteFallback.trim()}
-                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-medium transition-colors whitespace-nowrap shrink-0"
-                  >
-                    {isProcessing ? (
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <Sparkles className="w-3.5 h-3.5" />
-                    )}
-                    Konwertuj na Zadania AI
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setVoiceNoteFallback(
+                          'Przygotować raport kwartalny na jutro (wysoki priorytet, 60 minut), a potem umówić przegląd kodu na 15 minut.'
+                        )
+                      }
+                      className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                    >
+                      Wstaw przykład
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => processAudioBlob()}
+                      disabled={isProcessing || !voiceNoteFallback.trim()}
+                      className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-medium transition-colors whitespace-nowrap shrink-0"
+                    >
+                      {isProcessing ? (
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Sparkles className="w-3.5 h-3.5" />
+                      )}
+                      Konwertuj na Zadania AI
+                    </button>
+                  </div>
                 </div>
                 <textarea
                   rows={3}
                   value={voiceNoteFallback}
                   onChange={(e) => setVoiceNoteFallback(e.target.value)}
-                  placeholder="Wpisz lub podyktuj treść notatki głosowej, np. 'Zrobić przegląd kodu o 14:00 i wysłać ofertę do klienta jutro rano'..."
+                  placeholder="Kliknij 'Rozpocznij Nagrywanie' aby nagrać głos i zapisać plik audio na dysku, albo wpisz treść notatki..."
                   className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-600"
                 />
+              </div>
+
+              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="text-xs font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                    <FolderOpen className="w-4 h-4 text-sky-500" />
+                    Zapisane Pliki Audio na Dysku ({savedNotes.length})
+                  </div>
+                  <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400 break-all">
+                    {voiceDirectory}
+                  </span>
+                </div>
+
+                {savedNotes.length === 0 ? (
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Brak zapisanych plików audio. Kliknij „Rozpocznij Nagrywanie” lub „Wgraj Audio”, aby utworzyć pierwsze nagranie w {voiceDirectory}.
+                  </p>
+                ) : (
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    {savedNotes.map((note) => (
+                      <div
+                        key={note.id}
+                        className="p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 space-y-1.5"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="text-xs font-medium text-slate-800 dark:text-slate-200 truncate">
+                            {note.fileName} ({Math.max(1, Math.round(note.sizeBytes / 1024))} KB)
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <a
+                              href={note.audioUrl}
+                              download={note.fileName}
+                              className="text-xs text-blue-600 dark:text-sky-400 hover:underline"
+                            >
+                              Pobierz
+                            </a>
+                            <button
+                              type="button"
+                              onClick={() => deleteSavedVoiceNote(note.id)}
+                              className="text-slate-400 hover:text-red-600"
+                              title="Usuń nagranie z dysku"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                        <audio controls src={note.audioUrl} className="w-full h-8" />
+                        {note.transcript && (
+                          <div className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2">
+                            {note.transcript}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           ) : (

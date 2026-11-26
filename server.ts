@@ -460,61 +460,309 @@ const MALWARE_SCAN_REMEDIATION_SCHEMA = {
   required: ['verdict', 'summary', 'threats', 'remediatedCode', 'eliminatedConstructsCount'],
 };
 
-// 1. Voice Note Transcription & Task Extraction Endpoint
+// 1. Native Voice Notes Disk Persistence + Transcription & Task Extraction
+interface VoiceNoteRecord {
+  id: string;
+  fileName: string;
+  relativePath: string;
+  absolutePath: string;
+  audioUrl: string;
+  mimeType: string;
+  sizeBytes: number;
+  durationSeconds: number;
+  transcript: string;
+  tasksCount: number;
+  createdAt: string;
+}
+
+interface ExtractedVoiceTask {
+  title: string;
+  description: string;
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  dueDateOffsetDays: number;
+  estimatedMinutes: number;
+  tags: string[];
+}
+
+const VOICE_NOTES_DIR = path.join(__dirname, 'data', 'voice-notes');
+const VOICE_NOTES_INDEX_FILE = path.join(VOICE_NOTES_DIR, 'index.json');
+
+function ensureVoiceNotesDir() {
+  if (!fs.existsSync(VOICE_NOTES_DIR)) {
+    fs.mkdirSync(VOICE_NOTES_DIR, { recursive: true });
+  }
+}
+
+function readVoiceNotesIndex(): VoiceNoteRecord[] {
+  ensureVoiceNotesDir();
+  if (!fs.existsSync(VOICE_NOTES_INDEX_FILE)) return [];
+  try {
+    const parsed = JSON.parse(fs.readFileSync(VOICE_NOTES_INDEX_FILE, 'utf-8'));
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((item) => {
+      if (!item || typeof item !== 'object' || !item.fileName) return false;
+      const diskPath = path.join(VOICE_NOTES_DIR, path.basename(String(item.fileName)));
+      return fs.existsSync(diskPath);
+    });
+  } catch {
+    return [];
+  }
+}
+
+function writeVoiceNotesIndex(notes: VoiceNoteRecord[]) {
+  ensureVoiceNotesDir();
+  const tmpFile = `${VOICE_NOTES_INDEX_FILE}.tmp`;
+  fs.writeFileSync(tmpFile, JSON.stringify(notes, null, 2), 'utf-8');
+  fs.renameSync(tmpFile, VOICE_NOTES_INDEX_FILE);
+}
+
+function extensionForAudioMime(mimeType?: string): string {
+  const clean = (mimeType || '').toLowerCase();
+  if (clean.includes('wav')) return 'wav';
+  if (clean.includes('mpeg') || clean.includes('mp3')) return 'mp3';
+  if (clean.includes('mp4') || clean.includes('m4a') || clean.includes('aac')) return 'm4a';
+  if (clean.includes('ogg')) return 'ogg';
+  return 'webm';
+}
+
+function saveVoiceNoteAudioFile(params: {
+  audioBase64: string;
+  mimeType: string;
+  durationSeconds?: number;
+  transcript?: string;
+}): VoiceNoteRecord {
+  ensureVoiceNotesDir();
+  const cleanBase64 = params.audioBase64.includes(',')
+    ? params.audioBase64.split(',')[1]
+    : params.audioBase64;
+  const buffer = Buffer.from(cleanBase64, 'base64');
+  const id = `vn_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
+  const ext = extensionForAudioMime(params.mimeType);
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const fileName = `notatka-${stamp}-${id}.${ext}`;
+  const absolutePath = path.join(VOICE_NOTES_DIR, fileName);
+  fs.writeFileSync(absolutePath, buffer);
+
+  const record: VoiceNoteRecord = {
+    id,
+    fileName,
+    relativePath: `data/voice-notes/${fileName}`,
+    absolutePath,
+    audioUrl: `/api/voice-notes/${id}/audio`,
+    mimeType: params.mimeType || 'audio/webm',
+    sizeBytes: buffer.byteLength,
+    durationSeconds: Math.max(0, Math.round(Number(params.durationSeconds) || 0)),
+    transcript: (params.transcript || '').trim(),
+    tasksCount: 0,
+    createdAt: new Date().toISOString(),
+  };
+
+  const notes = readVoiceNotesIndex();
+  notes.unshift(record);
+  writeVoiceNotesIndex(notes);
+  return record;
+}
+
+function extractTasksDeterministically(rawText: string): ExtractedVoiceTask[] {
+  const normalized = rawText.trim();
+  if (!normalized) return [];
+
+  const clauses = normalized
+    .split(/(?:[\n;]+|(?<=[.!?])\s+|\b(?:a potem|następnie|oraz dodatkowo)\b)/i)
+    .map((s) => s.replace(/^[-*•\d.)\s]+/, '').trim())
+    .filter((s) => s.length >= 4);
+
+  const parts = clauses.length > 0 ? clauses : [normalized];
+  return parts.slice(0, 8).map((part) => {
+    const lower = part.toLowerCase();
+    let priority: ExtractedVoiceTask['priority'] = 'medium';
+    if (/(pilne|krytyczn|natychmiast|asap|awaria)/i.test(lower)) priority = 'urgent';
+    else if (/(wysoki|ważn|priorytet|konieczn)/i.test(lower)) priority = 'high';
+    else if (/(niski|kiedyś|opcjonaln)/i.test(lower)) priority = 'low';
+
+    let dueDateOffsetDays = 1;
+    if (/(dzisiaj|dziś)/i.test(lower)) dueDateOffsetDays = 0;
+    else if (/jutro/i.test(lower)) dueDateOffsetDays = 1;
+    else if (/pojutrze/i.test(lower)) dueDateOffsetDays = 2;
+    else if (/(tydzień|za tydzień|przyszły tydzień)/i.test(lower)) dueDateOffsetDays = 7;
+
+    const minMatch = lower.match(/(\d{1,3})\s*(?:min|minut|minuty)/i);
+    const hourMatch = lower.match(/(\d{1,2})\s*(?:godz|h\b)/i);
+    const estimatedMinutes = minMatch
+      ? Math.max(5, Math.min(480, Number(minMatch[1])))
+      : hourMatch
+        ? Math.max(15, Math.min(480, Number(hourMatch[1]) * 60))
+        : 30;
+
+    const cleanTitle = part
+      .replace(/\(.*?\)/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 90);
+
+    return {
+      title: cleanTitle.charAt(0).toUpperCase() + cleanTitle.slice(1),
+      description: `Utworzono z notatki głosowej Chronos Vault: "${part}"`,
+      priority,
+      dueDateOffsetDays,
+      estimatedMinutes,
+      tags: ['notatka-głosowa', 'lokalne-nagranie'],
+    };
+  });
+}
+
+app.get('/api/voice-notes', (_req, res) => {
+  try {
+    const notes = readVoiceNotesIndex();
+    res.json({ directory: VOICE_NOTES_DIR, notes });
+  } catch (error: unknown) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Błąd odczytu nagrań głosowych' });
+  }
+});
+
+app.get('/api/voice-notes/:id/audio', (req, res) => {
+  const safeId = String(req.params.id || '').replace(/[^a-zA-Z0-9_-]/g, '');
+  const note = readVoiceNotesIndex().find((n) => n.id === safeId);
+  if (!note) {
+    res.status(404).json({ error: 'Nie znaleziono nagrania głosowego.' });
+    return;
+  }
+  const diskPath = path.join(VOICE_NOTES_DIR, path.basename(note.fileName));
+  if (!fs.existsSync(diskPath)) {
+    res.status(404).json({ error: 'Plik audio nie istnieje na dysku.' });
+    return;
+  }
+  res.setHeader('Content-Type', note.mimeType || 'audio/webm');
+  res.setHeader('Content-Disposition', `inline; filename="${note.fileName}"`);
+  res.sendFile(diskPath);
+});
+
+app.delete('/api/voice-notes/:id', (req, res) => {
+  const safeId = String(req.params.id || '').replace(/[^a-zA-Z0-9_-]/g, '');
+  const notes = readVoiceNotesIndex();
+  const target = notes.find((n) => n.id === safeId);
+  if (!target) {
+    res.status(404).json({ error: 'Nie znaleziono nagrania.' });
+    return;
+  }
+  const diskPath = path.join(VOICE_NOTES_DIR, path.basename(target.fileName));
+  if (fs.existsSync(diskPath)) {
+    fs.unlinkSync(diskPath);
+  }
+  writeVoiceNotesIndex(notes.filter((n) => n.id !== safeId));
+  res.json({ deleted: true, id: safeId });
+});
+
 app.post('/api/ai/transcribe-voice', async (req, res) => {
   try {
-    const { audioBase64, mimeType, textFallback } = req.body as {
+    const { audioBase64, mimeType, textFallback, durationSeconds } = req.body as {
       audioBase64?: string;
       mimeType?: string;
       textFallback?: string;
+      durationSeconds?: number;
     };
 
-    const ai = getAIClient();
     let rawTranscript = textFallback ? textFallback.trim() : '';
+    let savedNote: VoiceNoteRecord | null = null;
+    let engine = 'local-speech-persistence';
 
     if (audioBase64 && mimeType) {
-      const transcribeResp = await ai.models.generateContent({
-        model: 'gemini-3.5-transcribe',
-        contents: {
-          parts: [
-            {
-              inlineData: {
-                mimeType,
-                data: audioBase64,
-              },
-            },
-            {
-              text: 'Dokonaj dokładnej transkrypcji tego nagrania głosowego w języku polskim (lub języku nagrania). Zwróć wyłącznie czysty tekst transkrypcji.',
-            },
-          ],
-        },
+      savedNote = saveVoiceNoteAudioFile({
+        audioBase64,
+        mimeType,
+        durationSeconds,
+        transcript: rawTranscript,
       });
-      rawTranscript = (transcribeResp.text ?? '').trim() || rawTranscript;
     }
 
-    if (!rawTranscript) {
+    const hasGeminiKey = Boolean(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.trim());
+    let parsedTasks: ExtractedVoiceTask[] = [];
+
+    if (hasGeminiKey) {
+      try {
+        const ai = getAIClient();
+        if (audioBase64 && mimeType && !rawTranscript) {
+          const cleanB64 = audioBase64.includes(',') ? audioBase64.split(',')[1] : audioBase64;
+          const transcribeResp = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: {
+              parts: [
+                { inlineData: { mimeType, data: cleanB64 } },
+                {
+                  text: 'Dokonaj dokładnej transkrypcji tego nagrania głosowego w języku polskim (lub języku nagrania). Zwróć wyłącznie czysty tekst transkrypcji.',
+                },
+              ],
+            },
+          });
+          rawTranscript = (transcribeResp.text ?? '').trim() || rawTranscript;
+        }
+
+        if (rawTranscript) {
+          const structResp = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: `Przeanalizuj poniższą notatkę głosową i wyodrębnij z niej strukturalne zadania do wykonania.\n\nNotatka głosowa:\n"${rawTranscript}"`,
+            config: {
+              systemInstruction:
+                'Jesteś precyzyjnym asystentem produktywności. Przekształcasz podyktowane notatki głosowe w uporządkowane zadania (tytuł, opis, priorytet: low/medium/high/urgent, dni do terminu, szacowany czas w minutach, tagi). Odpowiadaj po polsku.',
+              responseMimeType: 'application/json',
+              responseSchema: EXTRACTED_TASKS_SCHEMA,
+            },
+          });
+          const parsed = JSON.parse((structResp.text ?? '{}').trim());
+          if (parsed.transcript) rawTranscript = String(parsed.transcript);
+          if (Array.isArray(parsed.tasks)) parsedTasks = parsed.tasks;
+          engine = 'gemini-2.5-flash';
+        }
+      } catch (aiErr: unknown) {
+        console.warn(
+          '[voice] Gemini fallback -> local parser:',
+          aiErr instanceof Error ? aiErr.message : String(aiErr)
+        );
+      }
+    }
+
+    if (parsedTasks.length === 0) {
+      if (rawTranscript) {
+        parsedTasks = extractTasksDeterministically(rawTranscript);
+      } else if (savedNote) {
+        rawTranscript = `Zapisano nagranie audio "${savedNote.fileName}" (${savedNote.durationSeconds || 1}s, ${Math.max(1, Math.round(savedNote.sizeBytes / 1024))} KB) w ${savedNote.relativePath}.`;
+        parsedTasks = [
+          {
+            title: `Odsłuchać notatkę głosową (${savedNote.fileName})`,
+            description: `Plik audio został zapisany lokalnie w katalogu ${VOICE_NOTES_DIR}.`,
+            priority: 'medium',
+            dueDateOffsetDays: 0,
+            estimatedMinutes: 10,
+            tags: ['audio', 'notatka-głosowa'],
+          },
+        ];
+      }
+    }
+
+    if (!rawTranscript && !savedNote) {
       res.status(400).json({ error: 'Brak danych audio lub tekstu do analizy.' });
       return;
     }
 
-    const structResp = await ai.models.generateContent({
-      model: 'gemini-4-hydrogen',
-      contents: `Przeanalizuj poniższą notatkę głosową i wyodrębnij z niej strukturalne zadania do wykonania. Jeśli notatka zawiera wiele poleceń lub punktów, utwórz osobne zadanie dla każdego z nich.\n\nNotatka głosowa:\n"${rawTranscript}"`,
-      config: {
-        systemInstruction:
-          'Jesteś precyzyjnym asystentem produktywności. Przekształcasz podyktowane notatki głosowe w uporządkowane zadania (tytuł, opis, priorytet: low/medium/high/urgent, dni do terminu, szacowany czas w minutach, tagi). Odpowiadaj po polsku.',
-        responseMimeType: 'application/json',
-        responseSchema: EXTRACTED_TASKS_SCHEMA,
-      },
-    });
+    if (savedNote) {
+      const notes = readVoiceNotesIndex().map((n) =>
+        n.id === savedNote!.id
+          ? { ...n, transcript: rawTranscript, tasksCount: parsedTasks.length }
+          : n
+      );
+      writeVoiceNotesIndex(notes);
+      savedNote = notes.find((n) => n.id === savedNote!.id) || savedNote;
+    }
 
-    const parsed = JSON.parse((structResp.text ?? '{}').trim());
     res.json({
-      transcript: parsed.transcript || rawTranscript,
-      tasks: Array.isArray(parsed.tasks) ? parsed.tasks : [],
+      transcript: rawTranscript,
+      tasks: parsedTasks,
+      savedNote,
+      directory: VOICE_NOTES_DIR,
+      engine,
     });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Błąd przetwarzania notatki głosowej AI';
+    const message = error instanceof Error ? error.message : 'Błąd przetwarzania notatki głosowej';
     console.error('Voice transcription error:', message);
     res.status(500).json({ error: message });
   }

@@ -2,6 +2,7 @@
 build/
 dist/
 coverage/
+data/voice-notes/
 .DS_Store
 *.log
 .env*
