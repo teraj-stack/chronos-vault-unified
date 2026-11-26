@@ -66,13 +66,37 @@
     <script type="module" src="/src/main.tsx"></script>
     <script>
       (function () {
-        setInterval(function () {
-          if (
-            document.visibilityState === 'visible' &&
-            !document.querySelector('input:focus, textarea:focus, select:focus, [contenteditable="true"]:focus')
-          ) {
-            window.location.reload();
+        var initialVersion = null;
+        // Restore scroll position after a version reload
+        try {
+          var savedY = sessionStorage.getItem('chronos_scroll_y_v1');
+          if (savedY) {
+            sessionStorage.removeItem('chronos_scroll_y_v1');
+            requestAnimationFrame(function () {
+              window.scrollTo(0, parseInt(savedY, 10) || 0);
+            });
           }
+        } catch (e) {}
+
+        // Every 5s: soft-refresh live data in-place (preserving exact open view & running functions).
+        // Only perform a full page reload when a new server build (ETag/Last-Modified) is detected.
+        setInterval(function () {
+          if (document.visibilityState !== 'visible') return;
+          window.dispatchEvent(new CustomEvent('chronos:soft-refresh', { detail: { ts: Date.now() } }));
+          if (document.querySelector('input:focus, textarea:focus, select:focus, [contenteditable="true"]:focus')) {
+            return;
+          }
+          fetch('/', { method: 'HEAD', cache: 'no-store' })
+            .then(function (res) {
+              var ver = res.headers.get('etag') || res.headers.get('last-modified') || '';
+              if (!initialVersion) {
+                initialVersion = ver;
+              } else if (ver && ver !== initialVersion) {
+                try { sessionStorage.setItem('chronos_scroll_y_v1', String(window.scrollY || 0)); } catch (e) {}
+                window.location.reload();
+              }
+            })
+            .catch(function () {});
         }, 5000);
       })();
     </script>
