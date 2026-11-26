@@ -1461,6 +1461,13 @@ export default function App() {
       const res = await signInWithGoogle();
       setUser(res.user);
       setGoogleAccessToken(res.accessToken);
+      if (res.mode === 'local-gdrive') {
+        setInAppBanner(
+          `Połączono z kontem Google Drive (${res.user.email}) — automatyczna synchronizacja co 60 s jest aktywna.`
+        );
+      } else {
+        setInAppBanner(`Zalogowano przez konto Google (${res.user.email || 'Google Workspace'}).`);
+      }
       return res.accessToken;
     } catch (err: unknown) {
       setAuthError(

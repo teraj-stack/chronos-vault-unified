@@ -78,6 +78,41 @@
           }
         } catch (e) {}
 
+        // Anti-window-lock safeguard: prevents accidental/malicious pointer-lock,
+        // fullscreen traps, or frozen scroll/pointer-events inside the web app.
+        function unlockWindowState() {
+          try {
+            if (document.pointerLockElement && document.exitPointerLock) {
+              document.exitPointerLock();
+            }
+            if (document.fullscreenElement && document.exitFullscreen) {
+              document.exitFullscreen().catch(function () {});
+            }
+            document.documentElement.style.pointerEvents = '';
+            document.body.style.pointerEvents = '';
+            if (document.body.style.overflow === 'hidden') {
+              document.body.style.overflow = '';
+            }
+            window.onbeforeunload = null;
+          } catch (e) {}
+        }
+        var lastEscTs = 0;
+        window.addEventListener('keydown', function (ev) {
+          if (ev.key === 'Escape') {
+            var now = Date.now();
+            if (now - lastEscTs < 600) unlockWindowState();
+            lastEscTs = now;
+          } else if (ev.ctrlKey && ev.shiftKey && (ev.key === 'U' || ev.key === 'u')) {
+            unlockWindowState();
+          }
+        }, true);
+        // Periodic check: never allow the root document to stay stuck with pointerEvents: none
+        setInterval(function () {
+          if (document.body && document.body.style.pointerEvents === 'none') {
+            document.body.style.pointerEvents = '';
+          }
+        }, 2000);
+
         // Subtle live 5s refresh indicator pill (bottom-right) so user sees live ticks without losing active view
         var badge = document.createElement('div');
         badge.id = 'chronos-live-5s-badge';

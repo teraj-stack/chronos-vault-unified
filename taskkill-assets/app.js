@@ -2245,19 +2245,10 @@
     if (Math.abs(dy) < 2 || Math.abs(dx) < 8) {
       return `M ${sx1} ${sy1} L ${sx2} ${sy2}`;
     }
-    const dirX = dx >= 0 ? 1 : -1;
-    const dirY = dy >= 0 ? 1 : -1;
-    // Clean orthogonal rounded-elbow tree connectors (matching the SKILL.md diagram style)
-    const elbowX = sx1 + dx * 0.38;
-    const r = Math.min(26, Math.abs(elbowX - sx1), Math.abs(sx2 - elbowX), Math.abs(dy) / 2);
-    return [
-      `M ${sx1} ${sy1}`,
-      `L ${elbowX - dirX * r} ${sy1}`,
-      `Q ${elbowX} ${sy1} ${elbowX} ${sy1 + dirY * r}`,
-      `L ${elbowX} ${sy2 - dirY * r}`,
-      `Q ${elbowX} ${sy2} ${elbowX + dirX * r} ${sy2}`,
-      `L ${sx2} ${sy2}`,
-    ].join(" ");
+    // Smooth organic cubic Bézier curves (no sharp orthogonal turns)
+    const cx1 = sx1 + dx * 0.48;
+    const cx2 = sx2 - dx * 0.48;
+    return `M ${sx1} ${sy1} C ${cx1} ${sy1}, ${cx2} ${sy2}, ${sx2} ${sy2}`;
   }
 
   function exportMindMapSvg(layout) {

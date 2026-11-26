@@ -20,6 +20,11 @@ import {
   type ReportedErrorRecord,
 } from './src/server/cloudFunctionsEngine';
 import { securityHardeningMiddleware, apiRateLimitMiddleware } from './src/server/securityHardening';
+import {
+  startGoogleDriveAutoSync,
+  syncNowToGoogleDrive,
+  getGoogleDriveSyncStatus,
+} from './src/server/googleDriveSync';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1671,6 +1676,16 @@ self.addEventListener('activate', (event) => {
       );
     }
   }
+
+  // Google Drive 1-minute auto-sync API (kontakt@bmclinic.co) — registered BEFORE SPA fallback
+  app.get('/api/gdrive-sync/status', (_req, res) => {
+    res.json(getGoogleDriveSyncStatus());
+  });
+  app.post('/api/gdrive-sync/now', (req, res) => {
+    const payload = req.body && typeof req.body === 'object' ? req.body : undefined;
+    res.json(syncNowToGoogleDrive(__dirname, payload));
+  });
+  startGoogleDriveAutoSync(__dirname);
 
   if (process.env.NODE_ENV !== 'production') {
     const { createServer: createViteServer } = await import('vite');
